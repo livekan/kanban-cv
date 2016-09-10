@@ -37,7 +37,7 @@ __CV__
 #### POST/createboard
 
 Sends JSON that looks like the following
-`{
+```{
 "channels": [
   {
     "title": "Later",
@@ -76,7 +76,9 @@ Sends JSON that looks like the following
     ]
   }
 ]
-}`
+}
+```
+
 Returns a 200 when created
 Our server parses this data and stores it.
 Assignee is left empty.
@@ -89,8 +91,9 @@ Color could associate with a assignee
 Gets a picture of the board when last updated. The jpg photo is sent in a JSON
 object link.
 
-`{
+```{
   "boardphoto":[
     {"photolink":"ip".photo.jpg", "photoid":"1"}
 ]
-}`
+}
+```
