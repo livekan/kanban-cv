@@ -64,13 +64,13 @@ Sends JSON that looks like the following
     "titleid": "2"
     "notes": [
       {
-        "taskid": "1",
+        "taskid": "3",
         "color": "#BBFA1B  ",
         "desc": "Call Onstar to Confirm Cancellation",
         "assignee": ""
       },
       {
-        "taskid": "2",
+        "taskid": "4",
         "color": "#F21BFA  ",
         "desc": "Buy LED Light Bulbs",
         "assignee": ""
@@ -82,9 +82,13 @@ Sends JSON that looks like the following
 ```
 
 Returns a 200 when created
+
 Our server parses this data and stores it.
+
 Assignee is left empty.
+
 Description is most likely left blank
+
 Color could associate with a assignee
 
 
@@ -96,7 +100,21 @@ object link.
 ```
 {
   "boardphoto":[
-    {"photolink":"ip".photo.jpg", "photoid":"1"}
+    {"photoid":"1", "photolink":"ip".photo.jpg", }
+]
+}
+```
+
+#### GET/imageofidx
+
+Gets a picture of the note when requested. The jpg photo is sent in a JSON
+object.
+
+Place holder image
+
+```
+{
+    {"idx":"1", "idxphoto":("ip".photo.jpg")}
 ]
 }
 ```
