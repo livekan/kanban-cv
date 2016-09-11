@@ -172,8 +172,11 @@ while(1):
 		for j in range(numHeaders):
 			centerRep.append((alldata[0, u_orig.argmax(axis=0) == j], alldata[1, u_orig.argmax(axis=0) == j]))
 		contourBuckets=[]
-		for i in xrange(numHeaders): contourBuckets.append([])
-		#	print contourBuckets
+		stickyBuckets=[]
+		for i in xrange(numHeaders): 
+			contourBuckets.append([])
+			stickyBuckets.append([])
+		#	print contourBuckets	
 		#	print "cntr" + str(cntr)
 		#	print "numHeaders" + str(numHeaders)
 		#	print "centerRep" + str(centerRep)
@@ -185,9 +188,29 @@ while(1):
 				x=centerRep[i][0][t]
 				y=centerRep[i][1][t]		
 				for each in stickies:
-					if each.midpoint== (x,y): contourBuckets[i].append(each.data)
+					if each.midpoint== (x,y): 
+						stickyBuckets[i].append(each)
+						contourBuckets[i].append(each.data)
 
 		#	print "contour buckets is" + str(contourBuckets)
+		#populate headers:
+		for stickyBucketN in stickyBuckets:
+			foundHeader=None				
+			for each in stickyBucketN:
+				if (each.parentHeader != None):
+					#could handle this case if there already was a parent header in cluster			
+					foundHeader = each.parenHeader
+					break
+			for each in stickyBucketN:
+				each.setHeader(foundHeader)
+		
+		#output to json
+		outputJson=[]
+		for each in stickyBuckets:
+			outputJson.append(each.metadata())
+		outputJson= json.dumps(outputJson)
+
+
 		image2=frame
 
 		for i in xrange(len(contourBuckets)):
@@ -198,25 +221,23 @@ while(1):
 			cv2.drawContours(image2, contourBuckets[i], -1, (0,0,z) , 2)
 		cv2.imshow("testing",image2)
 
-
-
 		#print "\n\n"
-
-
 
 		# show the output image
 		cv2.imshow('doesntMatter',image)
 		headers=[]
 		stickies=[]
 
-
 		counter=0
 		k = cv2.waitKey(30) & 0xff
+	
 	threshold=np.sum(diffImg(darkness, fgmask, darkness))
 	print threshold
 	counter+=1
 
+	
 	#board= KanbanBoard(frame)
+
 	if True: #!(firstBoard.sameBoard(secondBoard)):
 		print "this is where we post firstBoard.data"
 	else:
