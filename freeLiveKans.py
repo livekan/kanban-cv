@@ -10,7 +10,7 @@ import numpy as np
 import time
 import json
 import uuid
-import urllib
+import urllib2
 
 
 import skfuzzy
@@ -37,11 +37,12 @@ class Sticky(object):
 		self.shape = shape
 		self.midpoint = midpoint
 		self.parentHeader= None
+		self.text=""
 	def setHeader(self, header):
 		self.parentHeader= header
 	def imageDif(self, otherSticky): return True
 	def metadata(self):
-		return {"id" : self.idx, "header": self.parentHeader, "shape": self.shape, "midpoints": self.midpoint, "area": self.area, "isHeader": self.isHeader}
+		return {"asignee": "", "text": str(text), "color": str(self.color), "desc": ""}
 
 	def compare(self, otherSticky):
 		if (self.midpoint != otherSticky.midpoint): return False
@@ -212,13 +213,19 @@ while(1):
 		#output to json
 		outputJson=[]
 		for val in stickyBuckets:
+			currentList=[]
 			for each in val:		
-				outputJson.append(each.metadata())
-		outputJson= json.dumps(outputJson)
+				currentList.append(each.metadata())
+			outputJson.append(currentList)
 
-		params = urllib.urlencode("gimme your json")
-		f = urllib.urlopen("http://de66c8cc.ngrok.io/api/kanban", params)
-		print f.read()
+		outputJson= json.dumps(outputJson)
+		req = urllib2.Request("http://de66c8cc.ngrok.io/api/kanban")
+		req.add_header('Content-Type', 'application/json')
+
+		print outputJson
+		response = urllib2.urlopen(req, outputJson)
+
+
 
 
 		image2=frame
