@@ -10,6 +10,7 @@ import numpy as np
 import time
 import json
 import uuid
+import urllib
 
 
 import skfuzzy
@@ -40,7 +41,7 @@ class Sticky(object):
 		self.parentHeader= header
 	def imageDif(self, otherSticky): return True
 	def metadata(self):
-		return {"id" : idx, "header": header, "shape": shape, "midpoints": midpoint, "header": header, "area": area}
+		return {"id" : self.idx, "header": self.parentHeader, "shape": self.shape, "midpoints": self.midpoint, "area": self.area, "isHeader": self.isHeader}
 
 	def compare(self, otherSticky):
 		if (self.midpoint != otherSticky.midpoint): return False
@@ -76,13 +77,13 @@ def median(lst):
 while(1):
 	ret, frame = cap.read()
 
-	fgmask = fgbg.apply(frame, learningRate=0.05)
+	fgmask = fgbg.apply(frame, learningRate=0.10)
 	image=frame
 	if (counter==0):
 		firstFrame=frame
 		darkness=fgmask
 
-	if (threshold<30000 and counter>=0): 
+	if (threshold<10000 and counter>=0): 
 		resized = imutils.resize(image, width=300)
 		image = cv2.cvtColor(image,cv2.COLOR_BGR2GRAY)
 		blurred = cv2.GaussianBlur(resized, (5, 5), 0)
@@ -140,7 +141,7 @@ while(1):
 				cv2.drawContours(image, [c], -1, (0, 255, 0), 2)
 				cv2.putText(image, text, (cX, cY),
 					cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2)
-				newSticky= Sticky(str(color), str(shape), 0, c, (cX, cY))
+				newSticky= Sticky(str(color), str(shape), -1, c, (cX, cY))
 				stickies.append(newSticky)
 
 
@@ -151,9 +152,12 @@ while(1):
 			areas.append(each.area)
 		medianA=median(areas)
 		for each in stickies:
-			if each.area>(medianA*1.75):
+			if each.area>(medianA*8): stickies.remove(each)
+			elif each.area>(medianA*1.75):
 				headers.append(each)
+
 			each.setHeader(each.idx)
+			each.isHeader=1
 
 		#clustering algorithms
 
@@ -199,16 +203,22 @@ while(1):
 			for each in stickyBucketN:
 				if (each.parentHeader != None):
 					#could handle this case if there already was a parent header in cluster			
-					foundHeader = each.parenHeader
+					foundHeader = each.parentHeader
 					break
-			for each in stickyBucketN:
+				else: each.isHeader=0
+			for each in stickyBucketN:				
 				each.setHeader(foundHeader)
 		
 		#output to json
 		outputJson=[]
-		for each in stickyBuckets:
-			outputJson.append(each.metadata())
+		for val in stickyBuckets:
+			for each in val:		
+				outputJson.append(each.metadata())
 		outputJson= json.dumps(outputJson)
+
+		params = urllib.urlencode("gimme your json")
+		f = urllib.urlopen("http://de66c8cc.ngrok.io/api/kanban", params)
+		print f.read()
 
 
 		image2=frame
