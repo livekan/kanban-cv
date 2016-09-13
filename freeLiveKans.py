@@ -31,10 +31,10 @@ fgbg = cv2.BackgroundSubtractorMOG()
 
 
 counter=0
+tolernace=5
 threshold=0
-
-
-
+stableCount=0
+send=False
 
 processor = AbbyyOnlineSdk()
 
@@ -89,7 +89,6 @@ def recognizeFile( filePath, resultFilePath, language, outputFormat ):
 	else:
 		print "Error processing task"
 
-
 class Sticky(object):
 	def __init__(self, color, shape, isHeader, data, midpoint):
 		self.color = color
@@ -100,13 +99,17 @@ class Sticky(object):
 		self.shape = shape
 		self.midpoint = midpoint
 		self.parentHeader= None
+		self.found = False
 		self.text=""
 	def setHeader(self, header):
 		self.parentHeader= header
 	def imageDif(self, otherSticky): return True
+	def checkMidpoint(self, otherSticky):
+		distance = ((self.midpoint[0]-otherSticky.midpoint[0])**2+(self.midpoint[0]-otherSticky.midpoint[0])**2)**.5
+		#print(distance)
+		return distance < tolernace
 	def metadata(self):
-		return {"asignee": "", "text": str(text), "color": str(self.color), "desc": ""}
-
+		return {"asignee": "", "header": self.parentHeader, "desc": str(text), "color": str(self.color), "desc": ""}
 	def compare(self, otherSticky):
 		if (self.midpoint != otherSticky.midpoint): return False
 		if (self.color != otherSticky.color) : return False
@@ -117,9 +120,10 @@ class Sticky(object):
 
 stickies  = []
 headers = []
+prevStickies = []
+stableStickies = []
 
 counter=0
-
 
 
 
@@ -137,7 +141,6 @@ def median(lst):
             return lst[((len(lst)+1)/2)-1]
     else:
             return float(sum(lst[(len(lst)/2)-1:(len(lst)/2)+1]))/2.0
-  
 
 while(1):
 	ret, frame = cap.read()
@@ -148,7 +151,7 @@ while(1):
 		firstFrame=frame
 		darkness=fgmask
 
-	if (threshold<10000 and counter>=0): 
+	if (threshold<60000 and counter>=0): 
 		resized = imutils.resize(image, width=300)
 		image = cv2.cvtColor(image,cv2.COLOR_BGR2GRAY)
 		blurred = cv2.GaussianBlur(resized, (5, 5), 0)
@@ -164,7 +167,7 @@ while(1):
 
 		gray = cv2.cvtColor(blurred, cv2.COLOR_BGR2GRAY)
 		lab = cv2.cvtColor(blurred, cv2.COLOR_BGR2LAB)
-		thresh = cv2.threshold(gray, 120, 255, cv2.THRESH_BINARY)[1]
+		thresh = cv2.threshold(gray, 160, 255, cv2.THRESH_BINARY)[1]
 		cv2.imshow("Thresh", thresh)
 
 		# find contours in the thresholded image
@@ -179,7 +182,7 @@ while(1):
 		building=[]
 		for each in cnts:
 			area=(cv2.contourArea(each))
-			if ((area > 500.0) or (area < 2000.0)):  building.append(each)
+			if ((area > 800.0) or (area < 2000.0)):  building.append(each)
 
 		cnts=building
 
@@ -211,9 +214,9 @@ while(1):
 				x, y, width, height = cv2.boundingRect(c)
 				roi = frame[y:y+height, x:x+width]
 				cv2.imwrite("roi.png", roi)
-				recognizeFile( "roi.png", "out.txt", 'English', 'txt')
-				with open("out.txt", "r") as f:
-					newSticky.text=f.read().replace('\n', '')
+				#recognizeFile( "roi.png", "out.txt", 'English', 'txt')
+				#with open("out.txt", "r") as f:
+				#	newSticky.text=f.read().replace('\n', '')
 				stickies.append(newSticky)
 
 
@@ -239,8 +242,8 @@ while(1):
 		alldata = np.vstack((xpts, ypts))
 
 		cntr, u_orig, _, _, _, _, _ = skfuzzy.cluster.cmeans(alldata, numHeaders, 2, error=0.08, maxiter=1000)
-		print "Clustering"
-		print "Number of clusters " + str((numHeaders))
+		#print "Clustering"
+		#print "Number of clusters " + str((numHeaders))
 		#	print "Areas are " + str(areas)
 		#	print "Stickies are "+ str(stickies)
 		#	print "Clusters are " + str(cntr)
@@ -286,18 +289,24 @@ while(1):
 		for val in stickyBuckets:
 			currentList=[]
 			for each in val:		
+				pH=str(each.parentHeader)				
 				currentList.append(each.metadata())
-			outputJson.append(currentList)
+			outputJson.extend([{"title": pH, "notes": currentList}])
 
-		outputJson= json.dumps(outputJson)
-		#req = urllib2.Request("http://de66c8cc.ngrok.io/api/kanban")
-		#req.add_header('Content-Type', 'application/json')
-
-		print outputJson
-		response = urllib2.urlopen(req, outputJson)
-	
-
-
+		outputJson2= json.dumps(outputJson)
+		print outputJson2
+		if(send):
+			try:
+				req = urllib2.Request("http://de66c8cc.ngrok.io/api/kanbans")
+				req.add_header('Content-Type', 'application/json')
+			except requests.exceptions.HTTPError:
+				print("test")
+			except requests.exceptions.RequestException as e:
+				print("test")
+			send = False
+		
+			print outputJson
+			response = urllib2.urlopen(req, outputJson2)
 
 		image2=frame
 
@@ -310,32 +319,98 @@ while(1):
 		cv2.imshow("testing",image2)
 
 		#print "\n\n"
+		
+		#Mark stickies as not found
+		for sticky in stickies:
+		    sticky.found = False
+		for prevSticky in prevStickies:		
+		    prevSticky.found = False
+
+		#Compare previous stickies to current ones and mark the ones that match
+		for sticky in stickies:
+    		    for prevSticky in prevStickies:		
+		    	if sticky.checkMidpoint(prevSticky):
+			    sticky.found = True
+			    prevSticky.found = True			
+
+		if len(stableStickies) == 0:
+		    stableStickies = stickies 
+		
+		if len(stickies) == len(prevStickies):
+		    stableCount = stableCount + 1
+		else: stableCount = 0
+
+		if stableCount > 10:
+			print("Sticky length")
+			print(len(stableStickies))	
+			stickiesGained = []
+			for sticky in stickies:
+			    if sticky.found is False:
+					stickiesGained.append(sticky)
+					print("Sticky gained")
+		
+			stickiesLost = []
+			for prevSticky in stableStickies:		
+			    if prevSticky.found is False:
+					stickiesLost.append(prevSticky)
+					print("Sticky lost")
+			
+			if len(stableStickies) != len(stickies):
+				send = True
+			stableStickies = stickies
+			stableCount = 0
+			
+
+		#print(stickiesGained[0].color)
+		#print(stickiesLost[0].color)
+		#for stickyGained in stickiesGained:
+		#    for stickyLost in stickiesLost:
+		#	if stickyGained.color == stickyLost.color:
+		#	    print(stickyGained.color)
+		
+
+		
+
+
+		#sIndex = 0
+		#prevIndex = 0
+		#while(sIndex < len(stickies)):
+		#    while(prevIndex < len(prevStickies)):
+		#    	if(stickies[sIndex].checkMidpoint(prevStickies[prevIndex])):
+		#	    stickies[sIndex].found = True
+		#	    sIndex = sIndex + 1
+		#	    break
+		#    	prevIndex = prevIndex + 1
+                #    
+		#    prevIndex = 0
+		#    sIndex = sIndex + 1
+
 
 		# show the output image
 		cv2.imshow('doesntMatter',image)
 		headers=[]
+
+		#Save previous sticky state
+		prevStickies=stickies
 		stickies=[]
 
 		counter=0
 		k = cv2.waitKey(30) & 0xff
-	
-	threshold=np.sum(diffImg(darkness, fgmask, darkness))
-	print threshold
+		threshold=np.sum(diffImg(darkness, fgmask, darkness))
+	else:
+		threshold=np.sum(diffImg(darkness, fgmask, darkness))
+		print threshold
 	counter+=1
-
 	
 	#board= KanbanBoard(frame)
 
-	if True: #!(firstBoard.sameBoard(secondBoard)):
-		print "this is where we post firstBoard.data"
-	else:
-		continue;
+	#if True: #!(firstBoard.sameBoard(secondBoard)):
+	#	print "this is where we post firstBoard.data"
+	#else:
+	#	continue;
 
 	time.sleep(0.25 - ((time.time() - starttime) % 0.25))
 
 
 cap.release()
 cv2.destroyAllWindows()
-
-
-
